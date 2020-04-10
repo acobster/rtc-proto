@@ -38,6 +38,10 @@ a:hover {
   text-decoration: underline;
 }
 
+input[type=text], input[type=checkbox], label {
+  cursor: pointer;
+}
+
 main {
   display: grid;
   grid-template-columns: 1fr 3fr;
@@ -97,6 +101,9 @@ dd .text-btn {
 }
 
 
+.filter-group {
+  margin-bottom: 1em;
+}
 .provider-filter__label {
   padding: 0.1em;
   line-height: 2.5;

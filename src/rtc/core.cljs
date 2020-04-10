@@ -11,6 +11,7 @@
 
 
 (defonce app (r/atom {:filtered-providers #{1 2 3}
+                      :filtered-types #{:appointment :availability}
 
                       :providers [{:id 1
                                    :name "Jay Patel"
@@ -151,15 +152,37 @@
 (def events (r/cursor app [:events]))
 (def providers (r/cursor app [:providers]))
 (def filtered-providers (r/cursor app [:filtered-providers]))
+(def filtered-types (r/cursor app [:filtered-types]))
 (def focused-appointment (r/cursor app [:focused-appointment]))
 
-(defn visible-events []
-  (reduce (fn [visible doc-id]
-            (concat visible (filter #(= doc-id (:doctor-id %))
-                                    (map ->fc-event @events))))
-          []
-          @filtered-providers))
+(defn for-provider? [doc-id e]
+  (= doc-id (:doctor-id e)))
 
+(defn event-type? [t e]
+  (= t (:type e)))
+
+(defn filter-by-provider [providers events]
+  (reduce (fn [visible doc-id]
+            (concat visible (filter (partial for-provider? doc-id) events)))
+          []
+          providers))
+
+(defn filter-by-type [types events]
+  (reduce (fn [visible type]
+            (concat visible (filter (partial event-type? type) events)))
+          []
+          types))
+
+(defn visible-events []
+  (->> @events
+       (filter-by-provider @filtered-providers)
+       (filter-by-type @filtered-types)
+       (map ->fc-event)))
+
+
+(defn toggle-member [s member]
+  (let [op (if (contains? s member) disj conj)]
+    (set (op s member))))
 
 (defn toggle-provider! [id]
   (let [op (if (contains? @filtered-providers id) disj conj)]
@@ -167,6 +190,9 @@
 
 (defn focus-appointment! [e]
   (swap! app assoc :focused-appointment e))
+
+(defn toggle-type-filter! [type]
+  (swap! app update :filtered-types toggle-member type))
 
 ;; -------------------------
 ;; Views
@@ -204,6 +230,37 @@
      [:<> children]
      [:span.modal__close {:on-click #(focus-appointment! nil)} "×"]]]])
 
+(defn filter-controls []
+  [:div.filters
+   [:div.filter-group
+    [:h4 "Filter by provider"]
+    (doall (map (fn [{:keys [name id availability-color]}]
+                  ^{:key id}
+                  [:div.provider-filter
+                   [:input {:id (str "provider-chk-" id)
+                            :type :checkbox
+                            :checked (contains? @filtered-providers id)
+                            :on-change #(toggle-provider! id)}]
+                   [:label.provider-filter__label {:for (str "provider-chk-" id)
+                                                   :style {:border-color availability-color}}
+                    name]])
+                @providers))]
+   [:div.filter-group
+    (doall (map (fn [{:keys [event-type label]}]
+                  (let [id (name event-type)]
+                    ^{:key event-type}
+                    [:div.type-filter
+                     [:input {:id id
+                              :type :checkbox
+                              :checked (contains? @filtered-types event-type)
+                              :on-change #(toggle-type-filter! event-type)}]
+                     [:label.type-filter__label {:for id}
+                      label]]))
+                [{:event-type :availability
+                  :label "Show availability"}
+                 {:event-type :appointment
+                  :label "Show appointments"}]))]])
+
 (defn scheduler []
   [:div.scheduler-app
    [:h1 "Care Schedule"]
@@ -212,19 +269,7 @@
       [appointment-details @focused-appointment]])
    [:main
     [:div.controls
-     [:div.filters
-      [:h4 "Filter by provider"]
-      (doall (map (fn [{:keys [name id availability-color]}]
-                    ^{:key id}
-                    [:div.provider-filter
-                     [:input {:id (str "provider-chk-" id)
-                              :type :checkbox
-                              :checked (contains? @filtered-providers id)
-                              :on-change #(toggle-provider! id)}]
-                     [:label.provider-filter__label {:for (str "provider-chk-" id)
-                                                     :style {:border-color availability-color}}
-                      name]])
-                  @providers))]]
+     [filter-controls]]
     [:div.calendar
      ;; TODO look into timeline view with Resources
      ;; https://fullcalendar.io/docs/timeline-view
@@ -256,5 +301,9 @@
 
   (toggle-provider! 1)
   (toggle-provider! 2)
+
+  (toggle-type-filter! :appointment)
+  (toggle-type-filter! :availability)
+  @filtered-types
 
   (swap! app assoc-in [:events 1 :email] "shevek@anarres.net"))
