@@ -118,6 +118,11 @@ dd .text-btn {
   text-decoration: underline;
   text-decoration-style: dashed;
 }
+.appt-info {
+  float: right;
+  color: darkblue;
+  font-size: 0.8em;
+}
 
 
 .fc-event.appointment {

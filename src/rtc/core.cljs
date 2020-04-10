@@ -10,8 +10,11 @@
    [clojure.walk :as walk :refer [keywordize-keys]]))
 
 
+(declare providers)
+
 (defonce app (r/atom {:filtered-providers #{1 2 3}
                       :filtered-types #{:appointment :availability}
+                      :filtered-needs #{}
 
                       :providers [{:id 1
                                    :name "Jay Patel"
@@ -40,6 +43,10 @@
                                 :type :appointment
                                 :start "2020-04-06 09:30:00"
                                 :end "2020-04-06 10:00:00"
+                                :needs-interpreter-for "Tagalog"
+                                :scheduled-interpreter {:name "Edward Tamayo"
+                                                        :phone "123-555-1234"
+                                                        :email "eddie@tamayo.email"}
                                 :doctor-id 1}
                                {:name "Ursula"
                                 :id 2
@@ -50,6 +57,7 @@
                                 :type :appointment
                                 :start "2020-04-08 11:00:00"
                                 :end "2020-04-08 11:40:00"
+                                :needs-interpreter-for "Chinese Mandarin"
                                 :doctor-id 2}
                                {:id 3
                                 :name "Toni"
@@ -60,6 +68,10 @@
                                 :type :appointment
                                 :start "2020-04-09 13:00:00"
                                 :end "2020-04-09 14:00:00"
+                                :needs-closed-captioning? true
+                                :scheduled-captioner {:name "Kaitlyn Armstrong"
+                                                      :phone "123-555-1234"
+                                                      :email "kaitlyn@riseup.net"}
                                 :doctor-id 1}
                                {:id 4
                                 :name "Angela"
@@ -70,6 +82,7 @@
                                 :type :appointment
                                 :start "2020-04-10 11:00:00"
                                 :end "2020-04-10 11:40:00"
+                                :needs-closed-captioning? true
                                 :doctor-id 2}
                                {:id 11
                                 :name "Langston Hughes"
@@ -118,8 +131,6 @@
                                 :type :availability
                                 :doctor-id 2}]}))
 
-(declare providers)
-
 
 (defn id->provider* [id]
   (first (filter #(= id (:id %)) @providers)))
@@ -153,6 +164,7 @@
 (def providers (r/cursor app [:providers]))
 (def filtered-providers (r/cursor app [:filtered-providers]))
 (def filtered-types (r/cursor app [:filtered-types]))
+(def filtered-needs (r/cursor app [:filtered-needs]))
 (def focused-appointment (r/cursor app [:focused-appointment]))
 
 (defn for-provider? [doc-id e]
@@ -160,6 +172,23 @@
 
 (defn event-type? [t e]
   (= t (:type e)))
+
+(defn interpreter-scheduled? [appt]
+  (boolean (:scheduled-interpreter appt)))
+(defn captioner-scheduled? [appt]
+  (boolean (:scheduled-captioner appt)))
+
+(defmulti needs? (fn [need _] need))
+
+(defmethod needs? :default [_ _] false)
+
+(defmethod needs? :scheduled-interpreter [_ event]
+  (boolean (and (:needs-interpreter-for event)
+                (nil? (:scheduled-interpreter event)))))
+
+(defmethod needs? :closed-captioning [_ event]
+  (boolean (and (:needs-closed-captioning? event)
+                (nil? (:scheduled-captioner event)))))
 
 (defn filter-by-provider [providers events]
   (reduce (fn [visible doc-id]
@@ -173,10 +202,18 @@
           []
           types))
 
+(defn filter-by-needs [needs events]
+  (filter (fn [event]
+              (or (not (appointment? event))
+                  (empty? needs)
+                  (some #(needs? % event) needs)))
+          events))
+
 (defn visible-events []
   (->> @events
        (filter-by-provider @filtered-providers)
        (filter-by-type @filtered-types)
+       (filter-by-needs @filtered-needs)
        (map ->fc-event)))
 
 
@@ -194,8 +231,45 @@
 (defn toggle-type-filter! [type]
   (swap! app update :filtered-types toggle-member type))
 
+(defn toggle-need-filter! [need]
+  (swap! app update :filtered-needs toggle-member need))
+
 ;; -------------------------
 ;; Views
+
+(defn appointment-interpreter-details [appt]
+  (cond
+    (needs? :scheduled-interpreter appt)
+    [:a.text-btn.schedule-interpreter {:href "#"} "Schedule interpreter"]
+
+    (interpreter-scheduled? appt)
+    [:span.appt-info.appt-info--interpreter
+     [:b "Scheduled: "]
+     [:span (:name (:scheduled-interpreter appt)) " "]
+     (when-let [phone (:phone (:scheduled-interpreter appt))]
+       [:a {:href (str "tel:" phone)} phone])
+     " "
+     (when-let [email (:email (:scheduled-interpreter appt))]
+       [:a {:href (str "mailto:" email)} email])]
+    
+    :else [:<>]))
+
+(defn appointment-captioner-details [appt]
+  (cond
+    (needs? :scheduled-captioner appt)
+    [:a.text-btn.schedule-interpreter {:href "#"} "Schedule interpreter"]
+
+    (captioner-scheduled? appt)
+    [:span.appt-info.appt-info--captioner
+     [:b "Scheduled: "]
+     [:span (:name (:scheduled-captioner appt)) " "]
+     (when-let [phone (:phone (:scheduled-captioner appt))]
+       [:a {:href (str "tel:" phone)} phone])
+     " "
+     (when-let [email (:email (:scheduled-captioner appt))]
+       [:a {:href (str "mailto:" email)} email])]
+    
+    :else [:<>]))
 
 (defn appointment-details [appt]
   (let [{:keys [start name pronouns phone email ok-to-text?]} appt]
@@ -213,9 +287,13 @@
      [:h3 "Access Needs"]
      [:dl
       [:dt "Interpretation"]
-      [:dd "Tagalog" [:a.text-btn.schedule-interpreter {:href "#"} "Schedule interpreter"]]
+      [:dd (or (:needs-interpreter-for appt) "None") [appointment-interpreter-details appt]]
+      [:dt "Closed Captions"]
+      [:dd (if (needs? :closed-captioning appt) "Yes" "No") [appointment-captioner-details appt]]
+      [:dt "VRS"]
+      [:dd "No"]
       [:dt "Other"]
-      [:dd "CC, VRS, Other: " [:i "Lorem ipsum dolor sit amet"]]]
+      [:dd "No"]]
      [:h3 "Medical Needs"]
      [:dl
       [:dt "Description"]
@@ -245,6 +323,7 @@
                                                    :style {:border-color availability-color}}
                     name]])
                 @providers))]
+
    [:div.filter-group
     (doall (map (fn [{:keys [event-type label]}]
                   (let [id (name event-type)]
@@ -259,7 +338,29 @@
                 [{:event-type :availability
                   :label "Show availability"}
                  {:event-type :appointment
-                  :label "Show appointments"}]))]])
+                  :label "Show appointments"}]))]
+   
+   [:div.filter-group
+    [:h4 "Filter by access needs"]
+    (doall (map (fn [{:keys [need label]}]
+                  (let [id (name need)]
+                    ^{:key id}
+                    [:div.needs-filter
+                     [:div.access-needs-filter
+                      [:input {:id id
+                               :type :checkbox
+                               :checked (contains? @filtered-needs need)
+                               :on-change #(toggle-need-filter! need)}]
+                      [:label {:for id}
+                       label]]]))
+                [{:need :scheduled-interpreter
+                  :label "Needs interp. scheduled"}
+                 {:need :closed-captioning
+                  :label "Needs captioner scheduled"}
+                 {:need :vrs
+                  :label "Needs VRS"}
+                 {:need :other
+                  :label "Other needs"}]))]])
 
 (defn scheduler []
   [:div.scheduler-app
@@ -306,4 +407,9 @@
   (toggle-type-filter! :availability)
   @filtered-types
 
-  (swap! app assoc-in [:events 1 :email] "shevek@anarres.net"))
+  (needs? :closed-captioning (get @events 2))
+  (needs? :closed-captioning (get @events 3))
+
+  (toggle-need-filter! :scheduled-interpreter)
+  (toggle-need-filter! :closed-captioning)
+  @filtered-needs)
