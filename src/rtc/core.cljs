@@ -201,7 +201,7 @@
   (let [{:keys [start name pronouns phone email ok-to-text?]} appt]
     [:div.appointment-details
      [:h2 name " (" pronouns ")"]
-     [:h4 (.format (moment start) "h:mma ddd, MMM D")]
+     [:p (.format (moment start) "h:mm A ddd, MMM D")]
      [:h3 "Contact"]
      [:dl
       [:dt "Email"]
