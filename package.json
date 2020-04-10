@@ -1,0 +1,17 @@
+{
+  "name": "rtc",
+  "version": "0.0.1",
+  "description": "Proof-of-concept for Radical Telehealth Collective scheduling app",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@fullcalendar/core": "^4.4.0",
+    "@fullcalendar/daygrid": "^4.4.0",
+    "@fullcalendar/react": "^4.4.0",
+    "@fullcalendar/timegrid": "^4.4.0",
+    "create-react-class": "^15.6.3",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
+    "shadow-cljs": "^2.8.94"
+  }
+}
