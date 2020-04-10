@@ -1,10 +1,12 @@
 body {
-  font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
+  position: relative;
   width: 80em;
   max-width: 90%;
   margin: 2em auto;
-  -webkit-font-smoothing: antialiased;
+
   font-size: 1.125em;
+  font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
   color: #333;
   line-height: 1.5em;
 }
@@ -28,6 +30,9 @@ a {
   text-decoration: none;
   color: #09f;
 }
+a[href="#"] {
+  cursor: not-allowed;
+}
 
 a:hover {
   text-decoration: underline;
@@ -35,6 +40,78 @@ a:hover {
 
 main {
   display: grid;
-  grid-template-columns: 3fr 1fr;
+  grid-template-columns: 1fr 3fr;
   grid-gap: 1em;
+  z-index: 1;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 1fr 4fr;
+}
+dt {
+  font-weight: bold;
+}
+
+dd .text-btn {
+  float: right;
+  right: 0;
+}
+
+
+
+.modal-bg {
+  position: fixed;
+  width: 100vw;
+  height: 200vh;
+  top: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 2;
+}
+.modal {
+  position: absolute;
+  width: 80vw;
+  height: 80vh;
+  top: 10vh;
+  left: 10vw;
+  padding: 2em;
+  background: white;
+}
+.modal__contents {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.modal__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: darkslategrey;
+  font-size: 2em;
+  font-weight: 800;
+  cursor: pointer;
+}
+.modal h2 {
+  margin-top: 0;
+}
+
+
+.provider-filter__label {
+  padding: 0.1em;
+  line-height: 2.5;
+
+  border-width: 5px;
+  border-style: solid;
+  cursor: pointer;
+}
+
+.text-btn {
+  text-decoration: underline;
+  text-decoration-style: dashed;
+}
+
+
+.fc-event.appointment {
+  cursor: pointer;
 }
