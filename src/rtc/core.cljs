@@ -12,7 +12,8 @@
 
 (declare providers)
 
-(defonce app (r/atom {:filtered-providers #{1 2 3}
+(defonce app (r/atom {:view :pending
+                      :filtered-providers #{1 2 3}
                       :filtered-types #{:appointment :availability}
                       :filtered-needs #{}
 
@@ -33,6 +34,17 @@
                                    :color "green"}]
 
                       :focused-appointment nil
+
+                      :new-careseekers [{:name "Hannah Arendt"
+                                         :pronouns "she/her"
+                                         :ok-to-text? false
+                                         :email "noright2@obey.com"
+                                         :phone "555-123-5476"}
+                                        {:name "Zoe Leonard"
+                                         :pronouns "they/them"
+                                         :ok-to-text? false
+                                         :email "dyke4prez2020@yahoo.com"
+                                         :phone "555-123-5476"}]
 
                       :events [{:name "Octavia"
                                 :id 1
@@ -160,12 +172,14 @@
              :className class})))
 
 
+(def new-careseekers (r/cursor app [:new-careseekers]))
 (def events (r/cursor app [:events]))
 (def providers (r/cursor app [:providers]))
 (def filtered-providers (r/cursor app [:filtered-providers]))
 (def filtered-types (r/cursor app [:filtered-types]))
 (def filtered-needs (r/cursor app [:filtered-needs]))
 (def focused-appointment (r/cursor app [:focused-appointment]))
+(def view (r/cursor app [:view]))
 
 (defn for-provider? [doc-id e]
   (= doc-id (:doctor-id e)))
@@ -240,7 +254,7 @@
 (defn appointment-interpreter-details [appt]
   (cond
     (needs? :scheduled-interpreter appt)
-    [:a.text-btn.schedule-interpreter {:href "#"} "Schedule interpreter"]
+    [:a.text-btn.schedule-interpreter {:href "#" :title "This doesn't do anything (yet)"} "Schedule interpreter"]
 
     (interpreter-scheduled? appt)
     [:span.appt-info.appt-info--interpreter
@@ -257,7 +271,7 @@
 (defn appointment-captioner-details [appt]
   (cond
     (needs? :scheduled-captioner appt)
-    [:a.text-btn.schedule-interpreter {:href "#"} "Schedule interpreter"]
+    [:a.text-btn.schedule-interpreter {:href "#" :title "This doesn't do anything (yet)"} "Schedule interpreter"]
 
     (captioner-scheduled? appt)
     [:span.appt-info.appt-info--captioner
@@ -362,29 +376,54 @@
                  {:need :other
                   :label "Other needs"}]))]])
 
+(defn calendar-view []
+  [:div.calendar-view
+   [:div.controls
+    [filter-controls]]
+   [:div.calendar
+     ;; TODO look into timeline view with Resources
+     ;; https://fullcalendar.io/docs/timeline-view
+    [:> FullCalendar {:default-view "timeGridWeek"
+                      :events @(r/track visible-events)
+                      :eventClick (fn [info]
+                                    (let [e (.. info -event -_def -extendedProps)
+                                          start (.. info -event -start)
+                                          end (.. info -event -end)]
+                                      (when (= "appointment" (.-type e))
+                                        (focus-appointment! (conj (keywordize-keys (js->clj e))
+                                                                  {:start start
+                                                                   :end end})))))
+                      :plugins [dayGridPlugin timeGridPlugin]}]]])
+
+(defn pending-view []
+  [:div.pending-view
+   [:h2 "New Care Seekers"]
+   [:ul
+    (doall (map (fn [{:keys [name pronouns ok-to-text? email phone]}]
+                  ^{:key name}
+                  [:li.careseeker--pending
+                   [:h5 (str name " (" pronouns ")")]
+                   [:a.text-btn {:href "#" :title "This doesn't do anything (yet)"} "Schedule an appointment"]
+                   [:a {:href (str "tel:" phone)} phone]
+                   [:br]
+                   [:a {:href (str "mailto:" email)} email]])
+                @new-careseekers))]])
+
 (defn scheduler []
   [:div.scheduler-app
-   [:h1 "Care Schedule"]
+   [:header
+    [:h1 "Care Schedule"]
+    [:nav
+     [:ul.nav
+      [:li [:a {:on-click #(swap! app assoc :view :pending)} "Pending"]]
+      [:li [:a {:on-click #(swap! app assoc :view :calendar)} "Calendar"]]]]]
    (when @focused-appointment
      [modal
       [appointment-details @focused-appointment]])
    [:main
-    [:div.controls
-     [filter-controls]]
-    [:div.calendar
-     ;; TODO look into timeline view with Resources
-     ;; https://fullcalendar.io/docs/timeline-view
-     [:> FullCalendar {:default-view "timeGridWeek"
-                       :events @(r/track visible-events)
-                       :eventClick (fn [info]
-                                     (let [e (.. info -event -_def -extendedProps)
-                                           start (.. info -event -start)
-                                           end (.. info -event -end)]
-                                       (when (= "appointment" (.-type e))
-                                         (focus-appointment! (conj (keywordize-keys (js->clj e))
-                                                                   {:start start
-                                                                    :end end})))))
-                       :plugins [dayGridPlugin timeGridPlugin]}]]]])
+    (case @view
+      :pending  [pending-view]
+      :calendar [calendar-view])]])
 
 ;; -------------------------
 ;; Initialize app
